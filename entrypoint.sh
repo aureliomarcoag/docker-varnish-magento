@@ -1,5 +1,4 @@
 #!/bin/bash
-env
 for var in MALLOC_MB DOMAIN_MAPPING BACKEND_HOST BACKEND_PORT ACL_PURGE_CIDR ; do
     if ! env | grep "$var" >dev/null 2>/dev/null; then
         echo "[warn] Environment variable not set: $var"
@@ -20,21 +19,16 @@ done
 
 MAGE_CODE_TYPE_MAPPING=$(echo -e $MAGE_CODE_TYPE_MAPPING)
 
+mkdir -p /etc/varnish
 cat <<EOF > /etc/varnish/default.vcl
 vcl 4.0;
 import std;
+import dynamic from "/usr/local/lib/varnish/vmods/libvmod_dynamic.so";
 
-backend default {
-    .host = "$BACKEND_HOST"; # CMAGE: backend host
-    .port = "$BACKEND_PORT"; # CMAGE: backend port
-    .first_byte_timeout = 600s;
-    .probe = {
-        .url = "/health_check.php";
-        .timeout = 2s;
-        .interval = 5s;
-        .window = 10;
-        .threshold = 5;
-   }
+# VCL compilation fails if no backend is specified
+backend dummy {
+    .host = "127.0.0.1";
+    .port = "80";
 }
 
 acl purge {
@@ -42,7 +36,26 @@ acl purge {
     "${ACL_PURGE_CIDR:-localhost}"; 
 }
 
+probe magento {
+    .url = "/health_check.php";
+    .timeout = 2s;
+    .interval = 5s;
+    .window = 10;
+    .threshold = 5;
+}
+
+# Actual backend uses the dynamic director below and is referred to as backend_hint in vcl_recv
+sub vcl_init {
+    # Other parameters can be found in 'man 3 vmod_dynamic':
+    new xdirector = dynamic.director(
+        "${BACKEND_PORT}",
+        "${BACKEND_HOST}",
+        probe = magento
+    );
+}
+
 sub vcl_recv {
+    set req.backend_hint = xdirector.backend("${BACKEND_HOST}", "${BACKEND_PORT}");
 
 ${MAGE_CODE_TYPE_MAPPING}
 
@@ -232,24 +245,9 @@ sub vcl_deliver {
 }
 
 sub vcl_hit {
-    if (obj.ttl >= 0s) {
-        # Hit within TTL period
-        return (deliver);
-    }
-    if (std.healthy(req.backend_hint)) {
-        if (obj.ttl + 60s > 0s) {
-            # Hit after TTL expiration, but within grace period
-            set req.http.grace = "normal (healthy server)";
-            return (deliver);
-        } else {
-            # Hit after TTL and grace expiration
-            return (miss);
-        }
-    } else {
-        # server is not healthy, retrieve from cache
-        set req.http.grace = "unlimited (unhealthy server)";
-        return (deliver);
-    }
+    # return(miss) was removed from vcl_hit
+    # https://github.com/varnishcache/varnish-cache/issues/1799
+    return (deliver);
 }
 EOF
 varnishd -j unix,user=varnish -F -a :80 -f /etc/varnish/default.vcl -s malloc,${MALLOC_MB:-1024}m -p http_resp_hdr_len=64000
