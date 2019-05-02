@@ -50,7 +50,8 @@ sub vcl_init {
     new xdirector = dynamic.director(
         "${BACKEND_PORT}",
         "${BACKEND_HOST}",
-        probe = magento
+        probe = magento,
+        ttl = 1s
     );
 }
 
