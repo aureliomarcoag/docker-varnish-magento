@@ -2,7 +2,7 @@ FROM bitnami/minideb:stretch
 
 # Build Varnish 6.2 with vmod dynamic
 RUN apt-get update \
-    && apt-get install -y git make libtool m4 automake pkg-config python3-docutils python3-sphinx libpcre3-dev libedit-dev \
+    && apt-get install -y git make libtool m4 automake pkg-config python3-docutils python3-sphinx libpcre3-dev libedit-dev libcurl3 \
     && cd /root \
     && git clone -b 6.2 --depth 1 https://github.com/varnishcache/varnish-cache.git \
     && cd /root/varnish-cache/ \
@@ -20,7 +20,8 @@ RUN apt-get update \
     && make install \
     && cd /root \
     && rm -Rf /root/libvmod-dynamic \
-    && apt-get purge -y git make libtool m4 automake pkg-config python3-docutils python3-sphinx libpcre3-dev libedit-dev \
+    && apt-get purge -y --autoremove git make libtool m4 automake pkg-config python3-docutils python3-sphinx libpcre3-dev libedit-dev \
+    && apt-get install gcc -y \
     && rm -Rf /var/lib/apt/lists/* \
     && useradd varnish
 
