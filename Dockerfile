@@ -21,7 +21,7 @@ RUN apt-get update \
     && cd /root \
     && rm -Rf /root/libvmod-dynamic \
     && apt-get purge -y --autoremove git make libtool m4 automake pkg-config python3-docutils python3-sphinx libpcre3-dev libedit-dev \
-    && apt-get install gcc -y \
+    && apt-get install gcc libbsd0 libedit2 libncurses5 -y \
     && rm -Rf /var/lib/apt/lists/* \
     && useradd varnish
 
