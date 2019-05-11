@@ -56,6 +56,11 @@ sub vcl_init {
 }
 
 sub vcl_recv {
+
+   if (req.method == "GET" && req.url == "/varnish_status") {       
+       return(synth(200, "OK"));
+   }
+
     set req.backend_hint = xdirector.backend("${BACKEND_HOST}", "${BACKEND_PORT}");
 
 ${MAGE_CODE_TYPE_MAPPING}
