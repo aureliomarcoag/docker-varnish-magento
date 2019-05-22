@@ -65,10 +65,6 @@ sub vcl_recv {
 
 ${MAGE_CODE_TYPE_MAPPING}
 
-    # CMAGE: Send actual backend host hostname instead of the
-    # hostname that comes with the client request
-    set req.http.host = "${BACKEND_HOST}";
-
     if (req.method == "PURGE") {
         if (client.ip !~ purge) {
             return (synth(405, "Method not allowed"));
